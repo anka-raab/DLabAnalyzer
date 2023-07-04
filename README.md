@@ -1,2 +1,2 @@
 # DLabAnalyzer
-A GUI to analyze HHG spectra
+A program to analyze HHG spectra
