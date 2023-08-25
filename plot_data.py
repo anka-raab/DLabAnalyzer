@@ -13,12 +13,12 @@ from scipy.optimize import curve_fit
 
 plt.set_cmap('plasma')
 #This is only for having the same energy axis everywhere!!! This we don't touch
-data_file_name = 'D:/dlab/2_color_harmonics/2023-06-27/c3_0p3.hdf5'
+data_file_name = 'D:/dlab/2_color_harmonics/2023-08-14/c3_long_trajectories.hdf5'
 hfr = h5py.File(data_file_name, 'r')
 E = np.asarray(hfr.get('E'))
 
 #That is the one we change.
-data_file_name = 'D:/dlab/2_color_harmonics/2023-06-27/c4_2p3.hdf5'
+data_file_name = 'D:/dlab/2_color_harmonics/2023-08-14/c3_short_trajectories_green20.hdf5'
 hfr = h5py.File(data_file_name, 'r')
 treated_profiles = np.asarray(hfr.get('treated_profiles'))
 #E = np.asarray(hfr.get('E'))
@@ -36,13 +36,25 @@ Eq = h * c / lam
 
 
 treated_profiles_cropped = treated_profiles
-treated_profiles_cropped[800:, :] = 0
+treated_profiles_cropped[300:, :] = 0
+treated_profiles_cropped[:33, :] = 0
 total_counts = np.apply_over_axes(np.sum, treated_profiles_cropped, [0])
 total_counts = total_counts.ravel()
 
 res_total_counts = np.reshape(total_counts, (ratio.size, phase.size))
 
 only_red_total_counts = np.average(res_total_counts[0, :])
+
+##
+plt.figure(222)
+plt.plot(E,treated_profiles_cropped[:,1])
+plt.plot(E,treated_profiles_cropped[:,100])
+plt.plot(E,treated_profiles_cropped[:,200])
+
+
+
+
+##
 
 plot_name = '_phase_stability'
 fig, axes = plt.subplots(2,2, num=1)
@@ -55,8 +67,8 @@ fig.colorbar(im, ax=ax, orientation="vertical")
 ax.set_xlabel("Relative Phase (rad)")
 ax.set_ylabel("SH Intensity Fraction")
 ax.set_title("Total Gain")
-ax.set_ylim([0,0.44])
-im.set_clim(0,4.5)
+#ax.set_ylim([0,0.44])
+#im.set_clim(0,1.5)
 
 
 
@@ -68,14 +80,14 @@ fig.colorbar(im, ax=ax, orientation="vertical")
 ax.set_xlabel("Relative Phase (rad)")
 ax.set_ylabel("SH Intensity Fraction")
 ax.set_title("Phase Error (rad)")
-im.set_clim(0,0.3)
+#im.set_clim(0,0.3)
 
 ax = axes[1,0]
 ax.cla()
 phase_dev[0, :] = np.nan
 im = ax.pcolormesh(phase, ratio, phase_dev)
 cbar = fig.colorbar(im, ax=ax, orientation="vertical")
-im.set_clim(-0.2, 0.2)
+im.set_clim(-0.5, 0.5)
 ax.set_xlabel("Relative Phase (rad)")
 ax.set_ylabel("SH Intensity Fraction")
 ax.set_title("Phase Deviation (rad)")
@@ -92,7 +104,7 @@ plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadat
        )
 
 ##
-phase_averaged = np.reshape(treated_profiles_cropped, (1600, ratio.size, phase.size))
+phase_averaged = np.reshape(treated_profiles_cropped, (512, ratio.size, phase.size))
 avgd = np.squeeze(np.apply_over_axes(np.average, phase_averaged, [2]))
 maxed = np.squeeze(np.apply_over_axes(np.nanmax, phase_averaged, [2]))
 
@@ -145,7 +157,7 @@ ax[1, 1].set_yticks([])
 ax[1, 1].set_xlabel("Gain")
 plt.subplots_adjust(wspace=0.1, hspace=0.2)
 ax[1, 1].set_title("Best fraction of SH: {:.2f}".format(ratio[np.argmax(sum_over_ratios)]))
-ax[1, 1].set_ylim([0,0.44])
+#ax[1, 1].set_ylim([0,0.44])
 
 plt.tight_layout()
 

@@ -129,13 +129,13 @@ def find_fwhm(x, y):
     return fwhm
 
 
-def open_images(start, end, path, date, roix, show_status=0, image_dim=[1000, 1600]):
+def open_images(start, end, path, date, roix,show_status=0, image_dim=[1000, 1600], fileformat = '.tif', transform = 1):
     image_matrix = np.zeros([image_dim[0], np.size(np.arange(roix[0], roix[1])), end - start + 1])
     for ind in range(start, end + 1):
         if show_status:
             print(ind)
-        file = path + date + '-' + str(int(ind)) + '.bmp'
-        im_temp = np.asarray(Image.open(file))
+        file = path + date + '-' + str(int(ind)) + fileformat
+        im_temp = np.asarray(Image.open(file)).T
         im_temp = im_temp[:, roix[0]:roix[1]]
         # print(ind-start)
         image_matrix[:, :, ind - start] = im_temp
@@ -169,6 +169,7 @@ def subtract_background(images, backgrounds):
 def fit_energy_calibration_peaks(prof, prom=2000, roi=[640, 1600], smoothing=21):
     dat = prof
     dat[0: roi[0]] = 0
+    dat[roi[1]:] = 0
     calibration = help.savitzky_golay(prof, smoothing, 3)  # window size 51, polynomial order 3
     peak, _ = find_peaks(calibration, prominence=prom)
     return calibration, peak
@@ -226,7 +227,7 @@ def treat_image(image_old, energy_axis, return_correct_E_axis=0):
 def remove_background_profile(profile):
     f = gaussian_filter1d(profile, 3)
     peaks, _ = find_peaks(-f)
-    y_bg = np.interp(np.arange(0, 1600), peaks, f[peaks])
+    y_bg = np.interp(np.arange(0, 512), peaks, f[peaks])
     p_new = profile - y_bg
     p_new[p_new<0] = 0
     return p_new
