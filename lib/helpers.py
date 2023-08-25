@@ -1,23 +1,3 @@
-import numpy as np
-from PIL import Image
-import matplotlib
-from matplotlib import pyplot as plt
-import sys
-from scipy.signal import find_peaks
-from scipy.interpolate import interp1d
-import lib.helpers as help
-import cv2
-from scipy.ndimage import gaussian_filter1d
-from scipy.signal import find_peaks
-
-me = 9.1e-31
-h = 6.62607015e-34
-c = 299792458
-qe = 1.60217662e-19
-lam = 1030e-9
-Eq = h * c / lam
-
-
 def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     r"""Smooth (and optionally differentiate) data with a Savitzky-Golay filter.
     The Savitzky-Golay filter removes high frequency noise from data.
@@ -94,6 +74,7 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
 import numpy as np
 
 
+
 def find_fwhm(x, y):
     """Find the Full Width Half Maximum (FWHM) of a peak.
 
@@ -128,122 +109,3 @@ def find_fwhm(x, y):
 
     return fwhm
 
-
-def open_images(start, end, path, date, roix, show_status=0, image_dim=[1000, 1600]):
-    image_matrix = np.zeros([image_dim[0], np.size(np.arange(roix[0], roix[1])), end - start + 1])
-    for ind in range(start, end + 1):
-        if show_status:
-            print(ind)
-        file = path + date + '-' + str(int(ind)) + '.bmp'
-        im_temp = np.asarray(Image.open(file))
-        im_temp = im_temp[:, roix[0]:roix[1]]
-        # print(ind-start)
-        image_matrix[:, :, ind - start] = im_temp
-    return image_matrix
-
-
-def open_autologfile(filename):
-    lines = np.loadtxt(filename, comments='#', dtype=str, delimiter="\t", unpack=False)
-    return lines
-
-
-def subtract_background(images, backgrounds):
-    nr_scans = np.shape(backgrounds)[2]
-    nr_total = np.shape(images)[2]
-    scan_size = nr_total / nr_scans
-
-    new = np.zeros_like(images)
-
-    # print(nr_scans, nr_total, scan_size)
-
-    for i in np.arange(0, nr_scans):
-        start = int(i * scan_size)
-        end = int(i * scan_size + scan_size)
-        for j in np.arange(start, end):
-            print(j, i)
-            new[:, :, j] = images[:, :, j] - backgrounds[:, :, i]
-
-    return new
-
-
-def fit_energy_calibration_peaks(prof, prom=2000, roi=[640, 1600], smoothing=21):
-    dat = prof
-    dat[0: roi[0]] = 0
-    calibration = help.savitzky_golay(prof, smoothing, 3)  # window size 51, polynomial order 3
-    peak, _ = find_peaks(calibration, prominence=prom)
-    return calibration, peak
-
-
-def shear_image(image_old, val):
-    T = np.float32([[1, val / 100, 0], [0, 1, 0]])
-    size_T = (image_old.shape[1], image_old.shape[0])
-    image_new = cv2.warpAffine(image_old, T, size_T)
-    return image_new
-
-
-def find_best_shear(image_old, roi, region=np.linspace(-8, 2, 50)):
-    nr = 20
-    res = np.zeros([np.size(region), 1])
-    for ind, i in enumerate(region):
-        im_new = shear_image(image_old, i)
-        prof = np.sum(im_new, 0)
-        dat = prof[roi[0]:roi[1]]
-        fwhm = help.find_fwhm(np.arange(0, np.size(dat)), dat)
-        res[ind] = fwhm
-    index = np.argmin(abs(res))
-    return region[index]
-
-
-def redistribute_image(sheared_image, E_axis):
-    Jacobian_vect = h * c / (E_axis ** 2)
-    Jacobian_vect_norm = Jacobian_vect / np.max(Jacobian_vect)
-    Jacobian_mat = np.tile(Jacobian_vect_norm, [np.shape(sheared_image)[0], 1])
-    redistributed_image = np.multiply(sheared_image, Jacobian_mat)
-    return redistributed_image
-
-
-def redistribute_profile(sheared_profile, E_axis):
-    Jacobian_vect = h * c / (E_axis ** 2)
-    Jacobian_vect_norm = Jacobian_vect / np.max(Jacobian_vect)
-    redistributed_profile = np.multiply(sheared_profile, Jacobian_vect_norm)
-    return redistributed_profile
-
-
-def treat_image(image_old, energy_axis, return_correct_E_axis=0):
-    sheared_image = shear_image(image_old, -2.5)
-    redistributed_image = redistribute_image(sheared_image, energy_axis)
-    y_axis = np.arange(0, np.shape(sheared_image)[0])
-    correct_E_axis = np.arange(energy_axis[0], energy_axis[-1],
-                               abs((energy_axis[0] - energy_axis[-1]) / np.shape(redistributed_image)[1]))
-    interp_func = interp1d(energy_axis, np.flip(redistributed_image, 1), axis=1, kind='linear')
-    image_new = interp_func(correct_E_axis)
-    if return_correct_E_axis:
-        return correct_E_axis, image_new
-    else:
-        return image_new
-
-
-def remove_background_profile(profile):
-    f = gaussian_filter1d(profile, 3)
-    peaks, _ = find_peaks(-f)
-    y_bg = np.interp(np.arange(0, 1600), peaks, f[peaks])
-    p_new = profile - y_bg
-    p_new[p_new<0] = 0
-    return p_new
-
-
-def treat_image_profiles(image_old, energy_axis, return_correct_E_axis=0):
-    sheared_image = shear_image(image_old, -2.5)
-    profile = np.sum(sheared_image, 0)
-    cleaned_profile = remove_background_profile(profile)
-    redistributed_profile = redistribute_profile(cleaned_profile, energy_axis)
-    y_axis = np.arange(0, np.shape(sheared_image)[0])
-    correct_E_axis = np.arange(energy_axis[0], energy_axis[-1],
-                               abs((energy_axis[0] - energy_axis[-1]) / np.shape(redistributed_profile)[0]))
-    interp_func = interp1d(energy_axis, np.flip(redistributed_profile), kind='linear')
-    profile_new = interp_func(correct_E_axis)
-
-    if return_correct_E_axis:
-        return correct_E_axis, profile_new
-    else:
-        return profile_new

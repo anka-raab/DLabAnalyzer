@@ -10,17 +10,26 @@ import lib.helpers as help
 import cv2
 import h5py
 from scipy.optimize import curve_fit
+import scienceplots
 
+plt.style.use('science')
+plt.rcParams.update({
+    "font.family": "serif",   # specify font family here
+    "font.serif": ["Times"]})  # specify font here
+
+plt.rcParams.update({'figure.dpi': '600'})
+plt.rcParams.update({"figure.figsize" : (5,4)})
 plt.set_cmap('plasma')
 #This is only for having the same energy axis everywhere!!! This we don't touch
-data_file_name = 'D:/dlab/2_color_harmonics/2023-06-27/c3_0p3.hdf5'
+data_file_name = 'D:/Users/me2120re/DLabData/2023-06-27/c3_0p3.hdf5'
 hfr = h5py.File(data_file_name, 'r')
 E = np.asarray(hfr.get('E'))
 
 #That is the one we change.
-data_file_name = 'D:/dlab/2_color_harmonics/2023-06-27/c4_2p3.hdf5'
+data_file_name = 'D:/Users/me2120re/DLabData/2023-06-16/c3_0p3.hdf5'
 hfr = h5py.File(data_file_name, 'r')
 treated_profiles = np.asarray(hfr.get('treated_profiles'))
+raw_images = np.asarray(hfr.get('raw_images'))
 #E = np.asarray(hfr.get('E'))
 phase = np.asarray(hfr.get('phase'))
 ratio = np.asarray(hfr.get('ratio'))
@@ -34,56 +43,54 @@ qe = 1.60217662e-19
 lam = 1030e-9
 Eq = h * c / lam
 
-
 treated_profiles_cropped = treated_profiles
 treated_profiles_cropped[800:, :] = 0
+
 total_counts = np.apply_over_axes(np.sum, treated_profiles_cropped, [0])
 total_counts = total_counts.ravel()
 
-res_total_counts = np.reshape(total_counts, (ratio.size, phase.size))
+res_total_count_non_shifted = np.reshape(total_counts, (ratio.size, phase.size))
+res_total_counts = np.roll(res_total_count_non_shifted, 10, axis=1)
 
 only_red_total_counts = np.average(res_total_counts[0, :])
+"""
+fig = plt.figure(1)
+ax = fig.gca()
 
-plot_name = '_phase_stability'
-fig, axes = plt.subplots(2,2, num=1)
-fig.set_facecolor('none')
-ax = axes[0,0]
-ax.cla()
-
-im = ax.pcolormesh(phase, ratio, res_total_counts / only_red_total_counts)
-fig.colorbar(im, ax=ax, orientation="vertical")
-ax.set_xlabel("Relative Phase (rad)")
+#im = ax.pcolormesh(phase, ratio, res_total_counts / only_red_total_counts, edgecolors='face')
+im = ax.pcolormesh(phase, ratio, res_total_counts / np.max(res_total_counts), edgecolors='face')
+fig.colorbar(im, ax=ax, orientation="vertical", label='Total Harmonics Signal, normalized (arb.u)')
+ax.set_xlabel("Two-Color Phase $\phi$ (rad)")
 ax.set_ylabel("SH Intensity Fraction")
-ax.set_title("Total Gain")
-ax.set_ylim([0,0.44])
-im.set_clim(0,4.5)
+im.set_clim(0.2,1)
+plt.savefig('./figures/total_harmonic_signal_absolute.png')
+plt.show()
 
-
-
-ax = axes[0,1]
-ax.cla()
+fig1 = plt.figure(1)
+ax1 = fig1.gca()
+# phase error is phase deviation for me
+ax1.cla()
 phase_error[0, :] = np.nan
-im = ax.pcolormesh(phase, ratio, phase_error)
-fig.colorbar(im, ax=ax, orientation="vertical")
-ax.set_xlabel("Relative Phase (rad)")
-ax.set_ylabel("SH Intensity Fraction")
-ax.set_title("Phase Error (rad)")
+phase_error_shifted = np.roll(phase_error, 10, axis=1)
+im = ax1.pcolormesh(phase, ratio, phase_error_shifted, edgecolors='face')
+fig1.colorbar(im, ax=ax1, orientation="vertical",label='Phase Deviation (rad)')
+ax1.set_xlabel("Two-Color Phase $\phi$ (rad)")
+ax1.set_ylabel("SH Intensity Fraction")
 im.set_clim(0,0.3)
+plt.savefig('./figures/phase_deviation_sh_fraction_absolute.png')
 
-ax = axes[1,0]
-ax.cla()
+fig2 = plt.figure(2)
+ax2 = fig2.gca()
+ax2.cla()
 phase_dev[0, :] = np.nan
-im = ax.pcolormesh(phase, ratio, phase_dev)
-cbar = fig.colorbar(im, ax=ax, orientation="vertical")
+phase_dev_shifted = np.roll(phase_dev, 10, axis=1)
+im = ax2.pcolormesh(phase, ratio, phase_dev_shifted, edgecolors='face')
+cbar = fig2.colorbar(im, ax=ax2, orientation="vertical",label='Phase Error (rad)')
 im.set_clim(-0.2, 0.2)
-ax.set_xlabel("Relative Phase (rad)")
-ax.set_ylabel("SH Intensity Fraction")
-ax.set_title("Phase Deviation (rad)")
-
-ax = axes[1,1]
-ax.axis('off')
-
-plt.tight_layout()
+ax2.set_xlabel("Two-Color Phase $\phi$ (rad)")
+ax2.set_ylabel("SH Intensity Fraction")
+plt.savefig('./figures/phase_error_sh_fraction_absolute.png')
+plt.show()
 
 plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadata=None,
         bbox_inches=None, pad_inches=0.1,
@@ -91,7 +98,7 @@ plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadat
         backend=None
        )
 
-##
+
 phase_averaged = np.reshape(treated_profiles_cropped, (1600, ratio.size, phase.size))
 avgd = np.squeeze(np.apply_over_axes(np.average, phase_averaged, [2]))
 maxed = np.squeeze(np.apply_over_axes(np.nanmax, phase_averaged, [2]))
@@ -111,8 +118,8 @@ ax[0, 0].set_facecolor('none')  #
 
 im = ax[0, 0].pcolormesh(E, ratio, 20 * np.log10(to_plot_avg), cmap='plasma')
 ax[0, 0].set_aspect('auto')
-ax[0, 0].set_xlim(17, 40)
-ax[0, 0].set_xlabel("Energy (eV)")
+ax[0, 0].set_xlim(20, 40)
+ax[0, 0].set_xlabel("Photon Energy (eV)")
 ax[0, 0].set_ylabel("SH Intensity Fraction")
 ax[0, 0].set_title("Counts, phase avg., normalized (dB)")
 im.set_clim(-40, 0)
@@ -123,14 +130,14 @@ sum_over_ratios = np.apply_over_axes(np.sum, to_plot_avg, [1]) / comparison_valu
 ax[0, 1].plot(sum_over_ratios, ratio)
 ax[0, 1].set_yticklabels([])
 ax[0, 1].set_yticks([])
-ax[0, 1].set_xlabel("Gain")
+ax[0, 1].set_xlabel("Yield")
 plt.subplots_adjust(wspace=0.1, hspace=0.2)
 ax[0, 1].set_title("Best fraction of SH: {:.2f}".format(ratio[np.argmax(sum_over_ratios)]))
 ax[0, 1].set_ylim([0,0.44])
 
 im = ax[1, 0].pcolormesh(E, ratio, 20 * np.log10(to_plot_max), cmap='plasma')
 ax[1, 0].set_aspect('auto')
-ax[1, 0].set_xlim(17, 40)
+ax[1, 0].set_xlim(20, 40)
 ax[1, 0].set_xlabel("Energy (eV)")
 ax[1, 0].set_ylabel("SH Intensity Fraction")
 ax[1, 0].set_title("Counts, best phase., normalized (dB)")
@@ -142,12 +149,15 @@ sum_over_ratios = np.apply_over_axes(np.sum, to_plot_max, [1]) / comparison_valu
 ax[1, 1].plot(sum_over_ratios, ratio)
 ax[1, 1].set_yticklabels([])
 ax[1, 1].set_yticks([])
-ax[1, 1].set_xlabel("Gain")
+ax[1, 1].set_xlabel("Yield")
 plt.subplots_adjust(wspace=0.1, hspace=0.2)
 ax[1, 1].set_title("Best fraction of SH: {:.2f}".format(ratio[np.argmax(sum_over_ratios)]))
 ax[1, 1].set_ylim([0,0.44])
-
 plt.tight_layout()
+plt.savefig('./figures/best_SH_fraction.png')
+plt.show()
+
+
 
 plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadata=None,
         bbox_inches=None, pad_inches=0.1,
@@ -162,8 +172,8 @@ plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadat
 #plt.clf()
 #plt.imshow(np.log(np.apply_over_axes(np.sum, treated_images_cropped, 2)))
 #plt.xlim(0, 600)
-
-harmonics = range(15, 35)
+"""
+harmonics = range(20, 40)
 harmonics_counts = np.zeros([ratio.size, phase.size, np.size(harmonics)])
 for i, h in enumerate(harmonics):
     ind = np.argmin(abs(E - h * Eq / qe))
@@ -173,9 +183,9 @@ for i, h in enumerate(harmonics):
     res = np.reshape(counts, (ratio.size, phase.size))
     harmonics_counts[:, :, i] = res
 
-harmonics_counts = harmonics_counts / np.max(harmonics_counts)
+harmonics_counts0 = harmonics_counts / np.max(harmonics_counts)
+harmonics_counts = np.roll(harmonics_counts0, 10, axis=1)
 harmonics_counts_log = 20 * np.log10(harmonics_counts)
-
 a = np.ceil(np.size(harmonics) / 2)
 
 fig, axes = plt.subplots(1, int(a), num=41)
@@ -196,6 +206,7 @@ for i, h in enumerate(harmonics):
 # fig.colorbar(im, ax=axes.ravel().tolist())
 cax = fig.add_axes([0.1, 0.05, 0.8, 0.03])  # Adjust the position and size as needed
 cbar = fig.colorbar(im, cax=cax, orientation='horizontal')
+plt.savefig('./figures/odd_harmonics_raw_abs.png')
 
 fig, axes = plt.subplots(1, int(a), num=42)
 for i, h in enumerate(harmonics):
@@ -212,7 +223,36 @@ for i, h in enumerate(harmonics):
 # fig.colorbar(im, ax=axes.ravel().tolist())
 cax = fig.add_axes([0.1, 0.05, 0.8, 0.03])  # Adjust the position and size as needed
 cbar = fig.colorbar(im, cax=cax, orientation='horizontal')
+plt.savefig('./figures/even_harmonics_raw_abs.png')
 
+#harmonics = [20, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 37]
+
+harmonics_counts = np.zeros([ratio.size, phase.size, len(harmonics)])
+for i, h in enumerate(harmonics):
+    ind = np.argmin(abs(E - h * Eq / qe))
+    counts = np.apply_over_axes(np.sum, treated_profiles_cropped[ind - 14:ind + 14, :], [0])
+    #plt.plot(ind, 500, 'o', color='black')
+    counts = np.ravel(counts)
+    res = np.reshape(counts, (ratio.size, phase.size))
+    harmonics_counts[:, :, i] = res
+
+harmonics_counts0 = harmonics_counts / np.max(harmonics_counts)
+harmonics_counts = np.roll(harmonics_counts0, 10, axis=1)
+harmonics_counts_log = 20 * np.log10(harmonics_counts)
+"""
+# Plot individual figures for each harmonic
+for i, h in enumerate(harmonics):
+    fig, ax = plt.subplots()
+    im = ax.pcolormesh(phase, ratio, harmonics_counts_log[:, :, i], cmap='inferno')
+    ax.set_aspect('auto')
+    ax.set_title("Harmonic {}".format(h))
+    plt.colorbar(im, label='Harmonics Counts (dB)')
+    plt.xlabel('Relative Two-Color Phase $\phi$ (rad)')
+    plt.ylabel('SH Intensity Fraction')
+    plt.tight_layout()
+    plt.savefig(f'Harmonic_{h}.png')
+    plt.close()
+"""
 ##
 ##
 
@@ -285,7 +325,7 @@ for i, h in enumerate(harmonics):
         im.set_clim(-50, 0)
 cax = fig.add_axes([0.1, 0.05, 0.8, 0.03])  # Adjust the position and size as needed
 cbar = fig.colorbar(im, cax=cax, orientation='horizontal')
-
+plt.savefig('./figures/odd_harmonics_fit_abs.png')
 fig, axes = plt.subplots(1, int(a), num=62)
 
 counter_even = 1
@@ -304,7 +344,7 @@ for i, h in enumerate(harmonics):
         im.set_clim(-50, 0)
 cax = fig.add_axes([0.1, 0.05, 0.8, 0.03])  # Adjust the position and size as needed
 cbar = fig.colorbar(im, cax=cax, orientation='horizontal')
-
+plt.savefig('./figures/even_harmonics_fit_abs.png')
 
 
 
@@ -359,24 +399,18 @@ plt.xlabel("Harmonic Order")
 plt.ylabel("SH Intensity Fraction")
 plt.title("Oscillation Offset")
 plt.ylim([0,0.44])
-
 plt.tight_layout()
+plt.savefig('./figures/harmonics_fit_abs.png')
 
-
-plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadata=None,
-        bbox_inches=None, pad_inches=0.1,
-        facecolor='None', edgecolor='None',
-        backend=None
-       )
-##
 plt.figure(71)
 plt.clf()
 plt.pcolormesh(harmonics,ratio,sine_fit_parameters[:, :, 0]/sine_fit_parameters[:, :, 3])
 plt.xlabel("Harmonic Order")
 plt.ylabel("SH Intensity Fraction")
-plt.title("Amplitude/Offset")
-plt.colorbar()
-
+plt.colorbar(label='Amplitude/Offset')
+plt.savefig('./figures/ratio_amplitude_offset_abs.png')
+plt.show()
+"""
 ## harmonics_counts to gain
 
 plot_name = '_best_ratio_and_gain_for_individual_harmonics'
@@ -418,15 +452,12 @@ ax1.set_ylabel("Opt. SH Intensity Fraction")
 ax2 = ax1.twinx()
 #ax2.set_facecolor('none')  #
 
-ax2.set_ylabel("Maximum Gain", color = 'r')
-ax2.spines['right'].set_color('r')
-ax2.tick_params(axis='y', colors='r')
+ax2.set_ylabel("Maximum Yield", color = 'r')
 
 for ind,h in enumerate(np.asarray(harmonics)):
     if np.mod(h,2)==1:
         ax2.scatter(h,phase_averaged_filter[maxima_avg[ind],ind],marker ='x',color = 'r')
         res[ind, 2] = phase_averaged_filter[maxima_avg[ind],ind]
-ax2.set_yscale('log')
 
 
 ax1=axes[1]
@@ -444,30 +475,22 @@ ax1.set_ylabel("Opt. SH Intensity Fraction")
 ax2 = ax1.twinx()
 #ax2.set_facecolor('none')  #
 
-ax2.set_ylabel("Maximum Gain", color = 'r')
-ax2.spines['right'].set_color('r')
-ax2.tick_params(axis='y', colors='r')
-
+ax2.set_ylabel("Maximum Yield", color ='r')
 
 for ind,h in enumerate(np.asarray(harmonics)):
     if np.mod(h,2)==1:
         ax2.scatter(h,phase_max_filter[maxima_max[ind],ind],marker ='x',color ='r')
         res[ind, 4] = phase_max_filter[maxima_max[ind],ind]
-ax2.set_yscale('log')
 
 plt.tight_layout()
-plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadata=None,
-        bbox_inches=None, pad_inches=0.1,
-        facecolor='auto', edgecolor='auto',
-        backend=None
-       )
+plt.savefig('./figures/individual_enhancement.png')
+plt.show()
 
 #
 
-np.savetxt(data_file_name[:-5]+plot_name+".txt",res)
+#np.savetxt(data_file_name[:-5]+plot_name+".txt",res)
 
 #sys.exit()
-
 ## now we look at harmonic 21!
 h = 25
 fig,axes = plt.subplots(2,2,num=100)
@@ -561,14 +584,14 @@ plt.plot(E/(Eq/qe),normalized_profiles[:,testindex])
 #plt.plot(normalized_profiles[:,800])
 
 
-"""
+
 plt.plot(E/(Eq/qe),normalized_profiles[:,200])
 plt.plot(E/(Eq/qe),normalized_profiles[:,400])
 plt.plot(E/(Eq/qe),normalized_profiles[:,600])
 plt.plot(E/(Eq/qe),normalized_profiles[:,800])
 plt.plot(E/(Eq/qe),normalized_profiles[:,1000])
 plt.plot(E/(Eq/qe),normalized_profiles[:,1190])
-"""
+
 
 
 
@@ -708,3 +731,4 @@ plt.legend()
 #plt.plot(intensities, all_res[17,1,:])
 #plt.plot(intensities, all_res[18,1,:])
 #plt.plot(intensities, all_res[19,1,:])
+"""
