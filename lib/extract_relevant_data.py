@@ -12,14 +12,14 @@ import h5py
 
 plt.set_cmap('plasma')
 
-date = '2023-08-14'
+date = '2023-08-24'
 path = 'G:/Atto/Data/LASC/dlab/dlabharmonics/' + date + '/'
 autolog = path + '/' + date + '-' + 'auto-log.txt'
 
 ##First, calibrate the energy!
 ##
 
-test = open_images(1932, 1961, path, date, image_dim=[512, 512], roix=[0, 512])
+test = open_images(18, 47, path, date, image_dim=[512, 512], roix=[0, 512])
 
 image = np.squeeze(np.apply_over_axes(np.sum, test, [2]))
 
@@ -35,9 +35,9 @@ add_ons = 0
 
 # profile[400:] = 0
 
-data, peaks = fit_energy_calibration_peaks(profile, 8, roix, 11)
+data, peaks = fit_energy_calibration_peaks(profile, 70, roix, 11)
 
-condition = (peaks > 140) & (peaks < 450)
+condition = (peaks > 0) & (peaks < 512)
 
 peaks = peaks[condition]
 
@@ -79,7 +79,7 @@ y = y_axis
 E, new_image = treat_image(image, E_axis, return_correct_E_axis=1)
 
 plt.figure(9)
-plt.pcolormesh(E, y, np.log10(new_image - 1000), cmap='plasma')
+plt.pcolormesh(E, y, np.log10(new_image), cmap='plasma')
 plt.xlim([15, 42])
 plt.xlabel("Energy (eV")
 x = np.arange(15, 35) * Eq / qe
@@ -87,15 +87,26 @@ x = np.arange(15, 35) * Eq / qe
 plt.title("This should look okay")
 
 ## Now load all pictures!
-start_im = 6732
-end_im = 7931
+start_im = 18
+end_im = 317
 
 all_images = open_images(start_im, end_im, path, date, roix=[0, 512], image_dim=[512, 512], show_status=1,
                          transform=1)  # c = 2.2, p = 2.5 bar
-
+## background_subtracted images
+bg = open_images(328, 337, path, date, roix=[0, 512], image_dim=[512, 512], show_status=1,
+                         transform=1)  # c = 2.2, p = 2.5 bar
+images_bg_treated = subtract_background(all_images,bg)
 ##
-all_images_new = np.zeros_like(all_images)
-all_images_new[80:320, 200:450, :] = all_images[80:320, 200:450, :]
+plt.figure(222)
+plt.subplot(2,1,1)
+plt.pcolormesh(np.log(all_images[:,:,100]))
+plt.colorbar()
+plt.subplot(2,1,2)
+plt.pcolormesh(np.log(images_bg_treated[:,:,100]))
+plt.colorbar()
+##
+#all_images_new = np.zeros_like(all_images)
+#all_images_new[80:320, 200:450, :] = all_images[80:320, 200:450, :]
 ## Now get all the profiles
 treated_profiles = np.zeros([all_images.shape[1], all_images.shape[2]])
 for i in range(0, np.shape(treated_profiles)[1]):
@@ -103,24 +114,24 @@ for i in range(0, np.shape(treated_profiles)[1]):
     im = all_images[:, :, i]
     treated_profiles[:, i] = np.squeeze(treat_image_profiles(im, E_axis))
 ##
-plt.figure(3)
-plt.subplot(2, 1, 1)
-plt.pcolormesh(all_images_new[:, :, 505])
-plt.colorbar()
-plt.subplot(2, 1, 2)
-plt.plot(np.sum(all_images_new[:, :, 505], 0))
+#plt.figure(3)
+#plt.subplot(2, 1, 1)
+#plt.pcolormesh(all_images_new[:, :, 505])
+#plt.colorbar()
+#plt.subplot(2, 1, 2)
+#plt.plot(np.sum(all_images_new[:, :, 505], 0))
 ## test images
-t = all_images_new[:, :, -30:]
-all_stds = np.squeeze(np.apply_over_axes(np.std, t, 2))
+#t = all_images_new[:, :, -30:]
+#all_stds = np.squeeze(np.apply_over_axes(np.std, t, 2))
 
-plt.figure(4)
-plt.pcolormesh(all_stds)
+#plt.figure(4)
+#plt.pcolormesh(all_stds)
 # plt.clim(10,np.max(all_stds))
-plt.colorbar()
+#plt.colorbar()
 
 ##
-plt.figure(5)
-plt.plot(t[220, 364, :])
+#plt.figure(5)
+#plt.plot(t[220, 364, :])
 
 
 ##
@@ -183,10 +194,10 @@ import os
 path_save = 'D:/dlab/2_color_harmonics/' + date
 if os.path.exists(path_save):
     print("Path exists!")
-    data_filename = 'D:/dlab/2_color_harmonics/' + date + '/c3_short_trajectories_green20.hdf5'
+    data_filename = 'D:/dlab/2_color_harmonics/' + date + '/test.hdf5'
 else:
     os.makedirs(path_save)
-    data_filename = 'D:/dlab/2_color_harmonics/' + date + '/c3_short_trajectories_green20.hdf5'
+    data_filename = 'D:/dlab/2_color_harmonics/' + date + '/test.hdf5'
 
 hf = h5py.File(data_filename, 'w')
 ##
