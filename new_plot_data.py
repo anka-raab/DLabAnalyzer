@@ -13,14 +13,14 @@ from scipy.optimize import curve_fit
 
 plt.set_cmap('plasma')
 #This is only for having the same energy axis everywhere!!! This we don't touch
-data_file_name = 'D:/dlab/2_color_harmonics/2023-08-14/c3_long_trajectories.hdf5'
-hfr = h5py.File(data_file_name, 'r')
-E = np.asarray(hfr.get('E'))
+#data_file_name = 'D:/dlab/2_color_harmonics/2023-08-14/c3_long_trajectories.hdf5'
+#hfr = h5py.File(data_file_name, 'r')
+#E = np.asarray(hfr.get('E'))
 
 #That is the one we change.
-data_file_name = 'D:/dlab/2_color_harmonics/2023-08-24/test.hdf5'
+data_file_name = 'D:/dlab/2_color_harmonics/2023-08-24/test2.hdf5'
 hfr = h5py.File(data_file_name, 'r')
-treated_profiles = np.asarray(hfr.get('treated_profiles'))
+treated_images = np.asarray(hfr.get('treated_images'))
 E = np.asarray(hfr.get('E'))
 phase = np.asarray(hfr.get('phase'))
 ratio = np.asarray(hfr.get('ratio'))
@@ -35,10 +35,10 @@ lam = 1030e-9
 Eq = h * c / lam
 
 
-treated_profiles_cropped = treated_profiles
+#treated_profiles_cropped = treated_profiles
 #treated_profiles_cropped[300:, :] = 0
 #treated_profiles_cropped[:33, :] = 0
-total_counts = np.apply_over_axes(np.sum, treated_profiles_cropped, [0])
+total_counts = np.apply_over_axes(np.sum, treated_images, [0,1])
 total_counts = total_counts.ravel()
 
 res_total_counts = np.reshape(total_counts, (ratio.size, phase.size))
@@ -46,10 +46,10 @@ res_total_counts = np.reshape(total_counts, (ratio.size, phase.size))
 only_red_total_counts = np.average(res_total_counts[0, :])
 
 ##
-plt.figure(222)
-plt.plot(E,treated_profiles_cropped[:,1])
-plt.plot(E,treated_profiles_cropped[:,100])
-plt.plot(E,treated_profiles_cropped[:,200])
+#plt.figure(222)
+#plt.plot(E,treated_profiles_cropped[:,1])
+#plt.plot(E,treated_profiles_cropped[:,100])
+#plt.plot(E,treated_profiles_cropped[:,200])
 
 
 
@@ -104,9 +104,13 @@ plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadat
        )
 
 ##
-phase_averaged = np.reshape(treated_profiles_cropped, (512, ratio.size, phase.size))
-avgd = np.squeeze(np.apply_over_axes(np.average, phase_averaged, [2]))
-maxed = np.squeeze(np.apply_over_axes(np.nanmax, phase_averaged, [2]))
+phase_averaged = np.reshape(treated_images, (512, 512, ratio.size, phase.size))
+phase_averaged_sum = np.squeeze(np.apply_over_axes(np.sum, phase_averaged,[0]))
+
+
+##
+avgd = np.squeeze(np.apply_over_axes(np.average, phase_averaged_sum, [2]))
+maxed = np.squeeze(np.apply_over_axes(np.nanmax, phase_averaged_sum, [2]))
 
 
 to_plot_avg = avgd.T / np.max(avgd.T)
@@ -123,7 +127,7 @@ ax[0, 0].set_facecolor('none')  #
 
 im = ax[0, 0].pcolormesh(E, ratio, 20 * np.log10(to_plot_avg), cmap='plasma')
 ax[0, 0].set_aspect('auto')
-ax[0, 0].set_xlim(17, 40)
+ax[0, 0].set_xlim(17, 50)
 ax[0, 0].set_xlabel("Energy (eV)")
 ax[0, 0].set_ylabel("SH Intensity Fraction")
 ax[0, 0].set_title("Counts, phase avg., normalized (dB)")
@@ -142,7 +146,7 @@ ax[0, 1].set_ylim([0,0.44])
 
 im = ax[1, 0].pcolormesh(E, ratio, 20 * np.log10(to_plot_max), cmap='plasma')
 ax[1, 0].set_aspect('auto')
-ax[1, 0].set_xlim(17, 40)
+ax[1, 0].set_xlim(17, 50)
 ax[1, 0].set_xlabel("Energy (eV)")
 ax[1, 0].set_ylabel("SH Intensity Fraction")
 ax[1, 0].set_title("Counts, best phase., normalized (dB)")
@@ -169,17 +173,19 @@ plt.savefig(data_file_name[:-5]+plot_name+'.png', dpi = 300,format=None, metadat
 
 ##
 
-#plt.figure(123)
-#plt.subplot(2, 1, 1)
-#plt.clf()
-#plt.imshow(np.log(np.apply_over_axes(np.sum, treated_images_cropped, 2)))
+plt.figure(123)
+plt.subplot(2, 1, 1)
+plt.clf()
+plt.imshow(np.log(treated_images[:,:,100]))
 #plt.xlim(0, 600)
 
-harmonics = range(15, 45)
+
+##
+harmonics = range(15, 41)
 harmonics_counts = np.zeros([ratio.size, phase.size, np.size(harmonics)])
 for i, h in enumerate(harmonics):
     ind = np.argmin(abs(E - h * Eq / qe))
-    counts = np.apply_over_axes(np.sum, treated_profiles_cropped[ind - 14:ind + 14, :], [0])
+    counts = np.apply_over_axes(np.sum, treated_images[:,ind - 5:ind + 5,:], [0,1])
     plt.plot(ind, 500, 'o', color='black')
     counts = np.ravel(counts)
     res = np.reshape(counts, (ratio.size, phase.size))
@@ -235,7 +241,56 @@ def cosine_func(x, amplitude, frequency, phi, offset):
 
 
 # Perform the cosine fit
+## try the fit for each pixel!!!
 
+sine_fits_px = np.zeros([ratio.size,phase.size,512,512])
+sine_fit_parameters_px = np.zeros([ratio.size, 512,512, 4]) * np.nan
+test = np.reshape(treated_images, (512, 512, ratio.size, phase.size))
+
+xs = np.arange(0,512)
+ys = np.arange(0,512)
+
+for ix, x in enumerate(xs):
+    print(ix)
+    for iy,y in enumerate(ys):
+        for ir, r in enumerate(ratio):
+            profile = np.squeeze(test[ix,iy,ir,:])
+            initial_guess = [(np.max(profile) - np.min(profile)) / 2, 1 / np.pi, 0, (np.max(profile) + np.min(profile))/2]  # Initial parameter guess [amplitude, frequency, phase, offset]
+            bounds = ([(np.max(profile) - np.min(profile)) / 2 - 0.2*((np.max(profile) - np.min(profile)) / 2), 1 / np.pi - 0.01, -np.pi, np.min(profile)], [(np.max(profile) - np.min(profile)) / 2 + 0.2*((np.max(profile) - np.min(profile)) / 2), 1 / np.pi + 0.01, np.pi, np.max(profile)])
+            try:
+                fit_params, fit_covariance = curve_fit(cosine_func, phase, profile, p0=initial_guess, bounds=bounds)
+                # Extract the fitted parameters
+                amplitude_fit, frequency_fit, phase_fit, offset_fit = fit_params
+                y_fit = cosine_func(phase, amplitude_fit, frequency_fit, phase_fit, offset_fit)
+                sine_fits_px[ix,iy,ir,:] = y_fit
+                sine_fit_parameters_px[ix,iy,ir, :] = fit_params
+            except:
+                a = 1+1
+                #print(h, r, "first fail")
+
+##
+plt.figure(1111)
+t = np.squeeze(test[200, 100, 5, :])
+plt.plot(t)
+
+initial_guess = [(np.max(t) - np.min(t)) / 2, 1 / np.pi, 0, (np.max(t) + np.min(t))/2]  # Initial parameter guess [amplitude, frequency, phase, offset]
+bounds = ([0, 1 / np.pi - 0.01, -np.pi, -0.1], [np.max(t), 1 / np.pi + 0.01, np.pi, np.max(t)])
+try:
+    fit_params, fit_covariance = curve_fit(cosine_func, phase, t, p0=initial_guess, bounds=bounds)
+    # Extract the fitted parameters
+    amplitude_fit, frequency_fit, phase_fit, offset_fit = fit_params
+    y_fit = cosine_func(phase, amplitude_fit, frequency_fit, phase_fit, offset_fit)
+    #sine_fits_px[ix,iy,ir,:] = y_fit
+    #            sine_fit_parameters_px[ix,iy,ir, :] = fit_params
+except:
+    a = 1+1
+
+plt.plot(cosine_func(phase,fit_params[0],fit_params[1],fit_params[2],fit_params[3]))
+##
+offsets_pixel = np.squeeze(sine_fit_parameters_px[5,:,:,2])
+plt.figure(111)
+plt.pcolormesh(offsets_pixel)
+##
 sine_fits = np.zeros_like(harmonics_counts)
 sine_fit_parameters = np.zeros([ratio.size, len(harmonics), 4]) * np.nan
 
